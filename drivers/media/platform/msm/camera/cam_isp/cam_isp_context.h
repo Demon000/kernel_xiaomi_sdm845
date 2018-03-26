@@ -118,6 +118,8 @@ struct cam_isp_ctx_req {
  *                         invoke CRM cb at those event.
  * @last_applied_req_id:   Last applied request id
  * @frame_skip_count:      Number of frame to skip before change state
+ * @rdi_only_context:          Get context type information.
+ *                             true, if context is rdi only context
  *
  */
 struct cam_isp_context {
@@ -138,6 +140,7 @@ struct cam_isp_context {
 	uint32_t                         subscribe_event;
 	int64_t                          last_applied_req_id;
 	uint32_t                         frame_skip_count;
+	bool                             rdi_only_context;
 };
 
 /**
