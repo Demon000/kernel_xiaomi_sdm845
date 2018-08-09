@@ -83,7 +83,7 @@ int32_t sl_eeprom_update_i2c_info(struct sl_eeprom_ctrl_t *e_ctrl,
 		}
 		cci_client->cci_i2c_master = e_ctrl->cci_i2c_master;
 		cci_client->sid = (i2c_info->slave_addr) >> 1;
-		cci_client->retries = 3;
+		cci_client->retries = 1;
 		cci_client->id_map = 0;
 		cci_client->i2c_freq_mode = i2c_info->i2c_freq_mode;
 		CAM_DBG(CAM_SL_EEPROM, " cci client info %d %d %d %d %d", cci_client->cci_i2c_master,
