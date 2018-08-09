@@ -680,7 +680,7 @@ int32_t cam_actuator_slaveInfo_pkt_parser(struct cam_actuator_ctrl_t *a_ctrl,
 		a_ctrl->io_master_info.cci_client->sid =
 			i2c_info->slave_addr >> 1;
 #ifdef CONFIG_USE_BU64748
-		a_ctrl->io_master_info.cci_client->retries = 3;
+		a_ctrl->io_master_info.cci_client->retries = 1;
 		a_ctrl->io_master_info.cci_client->id_map = 0;
 #endif
 		CAM_DBG(CAM_ACTUATOR, "Slave addr: 0x%x Freq Mode: %d",
