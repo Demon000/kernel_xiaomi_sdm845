@@ -112,7 +112,7 @@ static int32_t cam_actuator_update_i2c_info(struct cam_actuator_ctrl_t *a_ctrl,
 		}
 		cci_client->cci_i2c_master = a_ctrl->cci_i2c_master;
 		cci_client->sid = (i2c_info->slave_addr) >> 1;
-		cci_client->retries = 3;
+		cci_client->retries = 1;
 		cci_client->id_map = 0;
 		cci_client->i2c_freq_mode = i2c_info->i2c_freq_mode;
 	}
