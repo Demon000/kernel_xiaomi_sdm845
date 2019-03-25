@@ -49,6 +49,22 @@
 
 };
 
+&wsa881x_0211 {
+	status = "disabled";
+};
+
+&wsa881x_0212 {
+	status = "disabled";
+};
+
+&wsa881x_0213 {
+	status = "disabled";
+};
+
+&wsa881x_0214 {
+	status = "disabled";
+};
+
 &soc {
 	adc2_switch_gpio: msm_cdc_pinctrl@28 {
 		compatible = "qcom,msm-cdc-pinctrl";
