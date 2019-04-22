@@ -123,12 +123,10 @@ struct cam_hw_start_args {
  * struct cam_hw_stop_args - Payload for stop command
  *
  * @ctxt_to_hw_map:        HW context from the acquire
- * @args:                  Arguments to pass for stop
  *
  */
 struct cam_hw_stop_args {
 	void              *ctxt_to_hw_map;
-	void              *args;
 };
 
 /**
