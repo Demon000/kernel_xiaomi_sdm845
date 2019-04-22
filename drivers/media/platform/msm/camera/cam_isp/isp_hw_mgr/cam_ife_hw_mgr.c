@@ -1427,7 +1427,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv,
 	}
 
 	acquire_args->ctxt_to_hw_map = ife_ctx;
-	ife_ctx->ctx_in_use = 1;
+	ife_ctx->ctx_state = CAM_IFE_HW_MGR_CTX_ACQUIRED;
 
 	cam_ife_hw_mgr_put_ctx(&ife_hw_mgr->used_ctx_list, &ife_ctx);
 
@@ -1549,7 +1549,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 		return -EPERM;
 	}
 
-	if (!ctx->ctx_in_use || !ctx->cdm_cmd) {
+	if ((ctx->ctx_state < CAM_IFE_HW_MGR_CTX_ACQUIRED) || !ctx->cdm_cmd) {
 		CAM_ERR(CAM_ISP, "Invalid context parameters");
 		return -EPERM;
 	}
@@ -1611,7 +1611,7 @@ static int cam_ife_mgr_stop_hw_in_overflow(void *stop_hw_args)
 		return -EINVAL;
 	}
 	ctx = (struct cam_ife_hw_mgr_ctx *)stop_args->ctxt_to_hw_map;
-	if (!ctx || !ctx->ctx_in_use) {
+	if (!ctx || (ctx->ctx_state < CAM_IFE_HW_MGR_CTX_ACQUIRED)) {
 		CAM_ERR(CAM_ISP, "Invalid context is used");
 		return -EPERM;
 	}
@@ -1673,6 +1673,7 @@ static int cam_ife_mgr_stop_hw_in_overflow(void *stop_hw_args)
 
 	/* Stop tasklet for context */
 	cam_tasklet_stop(ctx->common.tasklet_info);
+	ctx->ctx_state = CAM_IFE_HW_MGR_CTX_STOPPED;
 	CAM_DBG(CAM_ISP, "Exit...ctx id:%d rc :%d",
 		ctx->ctx_index, rc);
 
@@ -1694,16 +1695,21 @@ static int cam_ife_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 		return -EINVAL;
 	}
 	ctx = (struct cam_ife_hw_mgr_ctx *)stop_args->ctxt_to_hw_map;
-	if (!ctx || !ctx->ctx_in_use) {
+	if (!ctx || (ctx->ctx_state < CAM_IFE_HW_MGR_CTX_ACQUIRED)) {
 		CAM_ERR(CAM_ISP, "Invalid context is used");
 		return -EPERM;
+	}
+
+	if (ctx->ctx_state == CAM_IFE_HW_MGR_CTX_STOPPED) {
+		CAM_DBG(CAM_ISP, "Already stopped");
+		return 0;
 	}
 
 	CAM_DBG(CAM_ISP, " Enter...ctx id:%d",
 		ctx->ctx_index);
 
 	/* Set the csid halt command */
-	if (!stop_args->args)
+	if (ctx->ctx_state == CAM_IFE_HW_MGR_CTX_PAUSED)
 		csid_halt_type = CAM_CSID_HALT_IMMEDIATELY;
 	else
 		csid_halt_type = CAM_CSID_HALT_AT_FRAME_BOUNDARY;
@@ -1793,6 +1799,7 @@ static int cam_ife_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 	for (i = 0; i < CAM_IFE_HW_OUT_RES_MAX; i++)
 		cam_ife_hw_mgr_deinit_hw_res(&ctx->res_list_ife_out[i]);
 
+	ctx->ctx_state = CAM_IFE_HW_MGR_CTX_STOPPED;
 	CAM_DBG(CAM_ISP, "Exit...ctx id:%d rc :%d", ctx->ctx_index, rc);
 
 	mutex_lock(&g_ife_hw_mgr.ctx_mutex);
@@ -1851,7 +1858,7 @@ static int cam_ife_mgr_restart_hw(void *start_hw_args)
 	}
 
 	ctx = (struct cam_ife_hw_mgr_ctx *)start_args->ctxt_to_hw_map;
-	if (!ctx || !ctx->ctx_in_use) {
+	if (!ctx || (ctx->ctx_state < CAM_IFE_HW_MGR_CTX_ACQUIRED)) {
 		CAM_ERR(CAM_ISP, "Invalid context is used");
 		return -EPERM;
 	}
@@ -1893,6 +1900,7 @@ static int cam_ife_mgr_restart_hw(void *start_hw_args)
 	}
 
 	CAM_DBG(CAM_ISP, "START CID SRC ... in ctx id:%d", ctx->ctx_index);
+	ctx->ctx_state = CAM_IFE_HW_MGR_CTX_STARTED;
 	/* Start IFE root node: do nothing */
 	CAM_DBG(CAM_ISP, "Exit...(success)");
 	return 0;
@@ -1917,7 +1925,7 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	}
 
 	ctx = (struct cam_ife_hw_mgr_ctx *)start_args->ctxt_to_hw_map;
-	if (!ctx || !ctx->ctx_in_use) {
+	if (!ctx || (ctx->ctx_state < CAM_IFE_HW_MGR_CTX_ACQUIRED)) {
 		CAM_ERR(CAM_ISP, "Invalid context is used");
 		return -EPERM;
 	}
@@ -2067,6 +2075,7 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 			goto err;
 		}
 	}
+	ctx->ctx_state = CAM_IFE_HW_MGR_CTX_STARTED;
 
 	/* Start IFE root node: do nothing */
 	CAM_DBG(CAM_ISP, "Exit...(success)");
@@ -2102,7 +2111,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	}
 
 	ctx = (struct cam_ife_hw_mgr_ctx *)release_args->ctxt_to_hw_map;
-	if (!ctx || !ctx->ctx_in_use) {
+	if (!ctx || (ctx->ctx_state < CAM_IFE_HW_MGR_CTX_ACQUIRED)) {
 		CAM_ERR(CAM_ISP, "Invalid context is used");
 		return -EPERM;
 	}
@@ -2122,7 +2131,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 
 	/* clean context */
 	list_del_init(&ctx->list);
-	ctx->ctx_in_use = 0;
+	ctx->ctx_state = CAM_IFE_HW_MGR_CTX_AVAILABLE;
 	ctx->is_rdi_only_context = 0;
 	ctx->cdm_handle = 0;
 	ctx->cdm_ops = NULL;
@@ -2588,7 +2597,7 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 	}
 
 	ctx = (struct cam_ife_hw_mgr_ctx *)hw_cmd_args->ctxt_to_hw_map;
-	if (!ctx || !ctx->ctx_in_use) {
+	if (!ctx || (ctx->ctx_state < CAM_IFE_HW_MGR_CTX_ACQUIRED)) {
 		CAM_ERR(CAM_ISP, "Fatal: Invalid context is used");
 		return -EPERM;
 	}
@@ -2603,9 +2612,11 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 		break;
 	case CAM_ISP_HW_MGR_CMD_PAUSE_HW:
 		cam_ife_mgr_pause_hw(ctx);
+		ctx->ctx_state = CAM_IFE_HW_MGR_CTX_PAUSED;
 		break;
 	case CAM_ISP_HW_MGR_CMD_RESUME_HW:
 		cam_ife_mgr_resume_hw(ctx);
+		ctx->ctx_state = CAM_IFE_HW_MGR_CTX_STARTED;
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x",
@@ -4113,6 +4124,8 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf)
 		g_ife_hw_mgr.ctx_pool[i].common.tasklet_info =
 			g_ife_hw_mgr.mgr_common.tasklet_pool[i];
 
+		g_ife_hw_mgr.ctx_pool[i].ctx_state =
+			CAM_IFE_HW_MGR_CTX_AVAILABLE;
 		list_add_tail(&g_ife_hw_mgr.ctx_pool[i].list,
 			&g_ife_hw_mgr.free_ctx_list);
 	}
