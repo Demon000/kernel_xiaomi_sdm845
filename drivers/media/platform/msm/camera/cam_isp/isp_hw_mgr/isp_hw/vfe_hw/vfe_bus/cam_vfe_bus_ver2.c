@@ -2829,29 +2829,32 @@ static int cam_vfe_bus_deinit_hw(void *hw_priv,
 	void *deinit_hw_args, uint32_t arg_size)
 {
 	struct cam_vfe_bus_ver2_priv    *bus_priv = hw_priv;
-	int                              rc;
+	int                              rc = 0;
 
-	if (!bus_priv || (bus_priv->irq_handle <= 0) ||
-		(bus_priv->error_irq_handle <= 0)) {
+	if (!bus_priv) {
 		CAM_ERR(CAM_ISP, "Error: Invalid args");
 		return -EINVAL;
 	}
 
-	rc = cam_irq_controller_unsubscribe_irq(
-		bus_priv->common_data.bus_irq_controller,
-		bus_priv->error_irq_handle);
-	if (rc)
-		CAM_ERR(CAM_ISP, "Failed to unsubscribe error irq rc=%d", rc);
+	if (bus_priv->error_irq_handle) {
+		rc = cam_irq_controller_unsubscribe_irq(
+			bus_priv->common_data.bus_irq_controller,
+			bus_priv->error_irq_handle);
+		if (rc)
+			CAM_ERR(CAM_ISP, "Failed to unsubscribe error irq rc=%d", rc);
 
-	bus_priv->error_irq_handle = 0;
+		bus_priv->error_irq_handle = 0;
+	}
 
-	rc = cam_irq_controller_unsubscribe_irq(
-		bus_priv->common_data.vfe_irq_controller,
-		bus_priv->irq_handle);
-	if (rc)
-		CAM_ERR(CAM_ISP, "Failed to unsubscribe irq rc=%d", rc);
+	if (bus_priv->irq_handle) {
+		rc = cam_irq_controller_unsubscribe_irq(
+			bus_priv->common_data.vfe_irq_controller,
+			bus_priv->irq_handle);
+		if (rc)
+			CAM_ERR(CAM_ISP, "Failed to unsubscribe irq rc=%d", rc);
 
-	bus_priv->irq_handle = 0;
+		bus_priv->irq_handle = 0;
+	}
 
 	return rc;
 }

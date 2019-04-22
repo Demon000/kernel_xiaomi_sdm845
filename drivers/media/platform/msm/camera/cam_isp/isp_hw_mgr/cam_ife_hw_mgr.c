@@ -2996,7 +2996,7 @@ static int  cam_ife_hw_mgr_handle_camif_error(
 	void                              *handler_priv,
 	void                              *payload)
 {
-	int32_t  error_status = CAM_ISP_HW_ERROR_NONE;
+	int32_t  error_status;
 	uint32_t core_idx;
 	struct cam_ife_hw_mgr_ctx               *ife_hwr_mgr_ctx;
 	struct cam_vfe_top_irq_evt_payload      *evt_payload;
@@ -3014,9 +3014,9 @@ static int  cam_ife_hw_mgr_handle_camif_error(
 		return error_status;
 
 	switch (error_status) {
-	case CAM_ISP_HW_ERROR_OVERFLOW:
-	case CAM_ISP_HW_ERROR_P2I_ERROR:
-	case CAM_ISP_HW_ERROR_VIOLATION:
+	case CAM_VFE_IRQ_STATUS_OVERFLOW:
+	case CAM_VFE_IRQ_STATUS_P2I_ERROR:
+	case CAM_VFE_IRQ_STATUS_VIOLATION:
 		CAM_DBG(CAM_ISP, "Enter: error_type (%d)", error_status);
 
 		error_event_data.error_type =
@@ -3100,6 +3100,15 @@ static int cam_ife_hw_mgr_handle_reg_update(
 				rup_status = hw_res->bottom_half_handler(
 					hw_res, evt_payload);
 			}
+
+			if (ife_src_res->is_dual_vfe) {
+				hw_res = ife_src_res->hw_res[0];
+				if (core_idx == hw_res->hw_intf->hw_idx) {
+					hw_res->bottom_half_handler(
+						hw_res, evt_payload);
+				}
+			}
+
 			if (atomic_read(&ife_hwr_mgr_ctx->overflow_pending))
 				break;
 
@@ -3115,13 +3124,6 @@ static int cam_ife_hw_mgr_handle_reg_update(
 		case CAM_ISP_HW_VFE_IN_RDI1:
 		case CAM_ISP_HW_VFE_IN_RDI2:
 		case CAM_ISP_HW_VFE_IN_RDI3:
-			if (!ife_hwr_mgr_ctx->is_rdi_only_context)
-				continue;
-
-			/*
-			 * This is RDI only context, send Reg update and epoch
-			 * HW event to cam context
-			 */
 			hw_res = ife_src_res->hw_res[0];
 
 			if (!hw_res) {
@@ -3132,6 +3134,9 @@ static int cam_ife_hw_mgr_handle_reg_update(
 			if (core_idx == hw_res->hw_intf->hw_idx)
 				rup_status = hw_res->bottom_half_handler(
 					hw_res, evt_payload);
+
+			if (!ife_hwr_mgr_ctx->is_rdi_only_context)
+				continue;
 
 			if (atomic_read(&ife_hwr_mgr_ctx->overflow_pending))
 				break;
@@ -3334,8 +3339,6 @@ static int cam_ife_hw_mgr_process_camif_sof(
 	struct cam_ife_hw_mgr_ctx            *ife_hwr_mgr_ctx,
 	struct cam_vfe_top_irq_evt_payload   *evt_payload)
 {
-	struct cam_isp_hw_sof_event_data      sof_done_event_data;
-	cam_hw_event_cb_func                  ife_hwr_irq_sof_cb;
 	struct cam_isp_resource_node         *hw_res_l = NULL;
 	struct cam_isp_resource_node         *hw_res_r = NULL;
 	int32_t rc = -EINVAL;
@@ -3350,9 +3353,6 @@ static int cam_ife_hw_mgr_process_camif_sof(
 	hw_res_r = isp_ife_camif_res->hw_res[1];
 	CAM_DBG(CAM_ISP, "is_dual_vfe ? = %d",
 		isp_ife_camif_res->is_dual_vfe);
-
-	ife_hwr_irq_sof_cb =
-		ife_hwr_mgr_ctx->common.event_cb[CAM_ISP_HW_EVENT_SOF];
 
 	switch (isp_ife_camif_res->is_dual_vfe) {
 	/* Handling Single VFE Scenario */
@@ -3370,16 +3370,8 @@ static int cam_ife_hw_mgr_process_camif_sof(
 				evt_payload);
 			if (atomic_read(&ife_hwr_mgr_ctx->overflow_pending))
 				break;
-			if (!sof_status) {
-				cam_ife_mgr_cmd_get_sof_timestamp(
-					ife_hwr_mgr_ctx,
-					&sof_done_event_data.timestamp);
-
-				ife_hwr_irq_sof_cb(
-					ife_hwr_mgr_ctx->common.cb_priv,
-					CAM_ISP_HW_EVENT_SOF,
-					&sof_done_event_data);
-			}
+			if (!sof_status)
+				rc = 0;
 		}
 
 		break;
@@ -3431,15 +3423,6 @@ static int cam_ife_hw_mgr_process_camif_sof(
 		rc = cam_ife_hw_mgr_check_irq_for_dual_vfe(ife_hwr_mgr_ctx,
 			core_index0, core_index1, evt_payload->evt_id);
 
-		if (!rc) {
-			cam_ife_mgr_cmd_get_sof_timestamp(
-					ife_hwr_mgr_ctx,
-					&sof_done_event_data.timestamp);
-
-			ife_hwr_irq_sof_cb(ife_hwr_mgr_ctx->common.cb_priv,
-				CAM_ISP_HW_EVENT_SOF, &sof_done_event_data);
-		}
-
 		break;
 
 	default:
@@ -3449,14 +3432,13 @@ static int cam_ife_hw_mgr_process_camif_sof(
 
 	CAM_DBG(CAM_ISP, "Exit (sof_status = %d)", sof_status);
 
-	return 0;
+	return rc;
 }
 
 static int cam_ife_hw_mgr_handle_sof(
 	void                              *handler_priv,
 	void                              *payload)
 {
-	int32_t rc = -EINVAL;
 	struct cam_isp_resource_node         *hw_res = NULL;
 	struct cam_ife_hw_mgr_ctx            *ife_hw_mgr_ctx;
 	struct cam_vfe_top_irq_evt_payload   *evt_payload;
@@ -3464,6 +3446,7 @@ static int cam_ife_hw_mgr_handle_sof(
 	cam_hw_event_cb_func                  ife_hw_irq_sof_cb;
 	struct cam_isp_hw_sof_event_data      sof_done_event_data;
 	uint32_t  sof_status = 0;
+	bool sof_sent = false;
 
 	CAM_DBG(CAM_ISP, "Enter");
 
@@ -3489,13 +3472,13 @@ static int cam_ife_hw_mgr_handle_sof(
 		case CAM_ISP_HW_VFE_IN_RDI1:
 		case CAM_ISP_HW_VFE_IN_RDI2:
 		case CAM_ISP_HW_VFE_IN_RDI3:
+			hw_res = ife_src_res->hw_res[0];
+			sof_status = hw_res->bottom_half_handler(
+				hw_res, evt_payload);
+
 			/* check if it is rdi only context */
 			if (ife_hw_mgr_ctx->is_rdi_only_context) {
-				hw_res = ife_src_res->hw_res[0];
-				sof_status = hw_res->bottom_half_handler(
-					hw_res, evt_payload);
-
-				if (!sof_status) {
+				if (!sof_status && !sof_sent) {
 					cam_ife_mgr_cmd_get_sof_timestamp(
 						ife_hw_mgr_ctx,
 						&sof_done_event_data.timestamp);
@@ -3506,16 +3489,30 @@ static int cam_ife_hw_mgr_handle_sof(
 						&sof_done_event_data);
 					CAM_DBG(CAM_ISP, "sof_status = %d",
 						sof_status);
+
+					sof_sent = true;
 				}
 
-				/* this is RDI only context so exit from here */
-				return 0;
 			}
 			break;
 
 		case CAM_ISP_HW_VFE_IN_CAMIF:
-			rc = cam_ife_hw_mgr_process_camif_sof(ife_src_res,
-				ife_hw_mgr_ctx, evt_payload);
+			sof_status = cam_ife_hw_mgr_process_camif_sof(
+				ife_src_res, ife_hw_mgr_ctx, evt_payload);
+			if (!sof_status && !sof_sent) {
+				cam_ife_mgr_cmd_get_sof_timestamp(
+					ife_hw_mgr_ctx,
+					&sof_done_event_data.timestamp);
+
+				ife_hw_irq_sof_cb(
+					ife_hw_mgr_ctx->common.cb_priv,
+					CAM_ISP_HW_EVENT_SOF,
+					&sof_done_event_data);
+				CAM_DBG(CAM_ISP, "sof_status = %d",
+					sof_status);
+
+				sof_sent = true;
+			}
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid resource id :%d",
@@ -3861,7 +3858,7 @@ int cam_ife_mgr_do_tasklet(void *handler_priv, void *evt_payload_priv)
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Encountered Error (%d), ignoring other irqs",
 			 rc);
-		goto put_payload;
+		return rc;
 	}
 
 	CAM_DBG(CAM_ISP, "Calling EOF");
