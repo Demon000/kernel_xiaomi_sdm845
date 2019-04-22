@@ -322,9 +322,10 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status)
 
 int cam_sync_merge(int32_t *sync_obj, uint32_t num_objs, int32_t *merged_obj)
 {
-	int rc;
+	int rc = 0;
 	long idx = 0;
 	bool bit;
+	int i = 0;
 
 	if (!sync_obj || !merged_obj) {
 		CAM_ERR(CAM_SYNC, "Invalid pointer(s)");
@@ -338,10 +339,16 @@ int cam_sync_merge(int32_t *sync_obj, uint32_t num_objs, int32_t *merged_obj)
 		return -EINVAL;
 	}
 
+	for (i = 0; i < num_objs; i++) {
+		spin_lock_bh(&sync_dev->row_spinlocks[sync_obj[i]]);
+	}
+
 	do {
 		idx = find_first_zero_bit(sync_dev->bitmap, CAM_SYNC_MAX_OBJS);
-		if (idx >= CAM_SYNC_MAX_OBJS)
-			return -ENOMEM;
+		if (idx >= CAM_SYNC_MAX_OBJS) {
+			rc = -ENOMEM;
+			goto failure;
+		}
 		bit = test_and_set_bit(idx, sync_dev->bitmap);
 	} while (bit);
 
@@ -355,13 +362,18 @@ int cam_sync_merge(int32_t *sync_obj, uint32_t num_objs, int32_t *merged_obj)
 			idx);
 		clear_bit(idx, sync_dev->bitmap);
 		spin_unlock_bh(&sync_dev->row_spinlocks[idx]);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto failure;
 	}
 	CAM_DBG(CAM_SYNC, "Init row at idx:%ld to merge objects", idx);
 	*merged_obj = idx;
 	spin_unlock_bh(&sync_dev->row_spinlocks[idx]);
 
-	return 0;
+failure:
+	for (i = 0; i < num_objs; i++) {
+		spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj[i]]);
+	}
+	return rc;
 }
 
 int cam_sync_destroy(int32_t sync_obj)
