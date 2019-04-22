@@ -520,7 +520,6 @@ int cam_vfe_top_start(void *device_priv,
 {
 	struct cam_vfe_top_ver2_priv            *top_priv;
 	struct cam_isp_resource_node            *mux_res;
-	struct cam_hw_info                      *hw_info = NULL;
 	int rc = 0;
 
 	if (!device_priv || !start_args) {
@@ -530,33 +529,24 @@ int cam_vfe_top_start(void *device_priv,
 
 	top_priv = (struct cam_vfe_top_ver2_priv *)device_priv;
 	mux_res = (struct cam_isp_resource_node *)start_args;
-	hw_info = (struct cam_hw_info  *)mux_res->hw_intf->hw_priv;
 
-	if (hw_info->hw_state == CAM_HW_STATE_POWER_UP) {
-		rc = cam_vfe_top_set_hw_clk_rate(top_priv);
-		if (rc) {
-			CAM_ERR(CAM_ISP,
-				"set_hw_clk_rate failed, rc=%d", rc);
-			return rc;
-		}
+	rc = cam_vfe_top_set_hw_clk_rate(top_priv);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "set_hw_clk_rate failed, rc=%d", rc);
+		return rc;
+	}
 
-		rc = cam_vfe_top_set_axi_bw_vote(top_priv, true);
-		if (rc) {
-			CAM_ERR(CAM_ISP,
-				"set_axi_bw_vote failed, rc=%d", rc);
-			return rc;
-		}
+	rc = cam_vfe_top_set_axi_bw_vote(top_priv, true);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "set_axi_bw_vote failed, rc=%d", rc);
+		return rc;
+	}
 
-		if (mux_res->start) {
-			rc = mux_res->start(mux_res);
-		} else {
-			CAM_ERR(CAM_ISP,
-				"Invalid res id:%d", mux_res->res_id);
-			rc = -EINVAL;
-		}
+	if (mux_res->start) {
+		rc = mux_res->start(mux_res);
 	} else {
-		CAM_ERR(CAM_ISP, "VFE HW not powered up");
-		rc = -EPERM;
+		CAM_ERR(CAM_ISP, "Invalid res id:%d", mux_res->res_id);
+		rc = -EINVAL;
 	}
 
 	return rc;
@@ -567,7 +557,6 @@ int cam_vfe_top_stop(void *device_priv,
 {
 	struct cam_vfe_top_ver2_priv            *top_priv;
 	struct cam_isp_resource_node            *mux_res;
-	struct cam_hw_info                      *hw_info = NULL;
 	int i, rc = 0;
 
 	if (!device_priv || !stop_args) {
@@ -577,7 +566,6 @@ int cam_vfe_top_stop(void *device_priv,
 
 	top_priv = (struct cam_vfe_top_ver2_priv   *)device_priv;
 	mux_res = (struct cam_isp_resource_node *)stop_args;
-	hw_info = (struct cam_hw_info  *)mux_res->hw_intf->hw_priv;
 
 	if (mux_res->res_id == CAM_ISP_HW_VFE_IN_CAMIF ||
 		(mux_res->res_id >= CAM_ISP_HW_VFE_IN_RDI0 &&
@@ -600,23 +588,12 @@ int cam_vfe_top_stop(void *device_priv,
 			}
 		}
 
-		if (hw_info->hw_state == CAM_HW_STATE_POWER_UP) {
-			rc = cam_vfe_top_set_hw_clk_rate(top_priv);
-			if (rc) {
-				CAM_ERR(CAM_ISP,
-					"set_hw_clk_rate failed, rc=%d", rc);
-				return rc;
-			}
+		top_priv->hw_clk_rate = 0;
 
-			rc = cam_vfe_top_set_axi_bw_vote(top_priv, true);
-			if (rc) {
-				CAM_ERR(CAM_ISP,
-					"set_axi_bw_vote failed, rc=%d", rc);
-				return rc;
-			}
-		} else {
-			CAM_ERR(CAM_ISP, "VFE HW not powered up");
-			rc = -EPERM;
+		rc = cam_vfe_top_set_axi_bw_vote(top_priv, true);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "set_axi_bw_vote failed, rc=%d", rc);
+			return rc;
 		}
 	}
 
