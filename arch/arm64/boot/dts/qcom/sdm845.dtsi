@@ -667,6 +667,11 @@
 			linux,cma-default;
 		};
 	};
+
+	keyreset {
+		compatible = "android,keyreset";
+		keys-down = <0x73 0x72>;
+	};
 };
 
 #include "msm-gdsc-sdm845.dtsi"
