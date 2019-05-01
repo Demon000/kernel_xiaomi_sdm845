@@ -91,14 +91,18 @@ int32_t cam_sensor_handle_delay(
 	if (offset > 0) {
 		i2c_list =
 			list_entry(list_ptr, struct i2c_settings_list, list);
+		CAM_ERR(CAM_SENSOR, "generic_op_code: %d delay %d", generic_op_code, cmd_uncond_wait->delay);
 		if (generic_op_code ==
-			CAMERA_SENSOR_WAIT_OP_HW_UCND)
+			CAMERA_SENSOR_WAIT_OP_HW_UCND && cmd_uncond_wait->delay < 1000)
 			i2c_list->i2c_settings.
 				reg_setting[offset - 1].delay =
 				cmd_uncond_wait->delay;
-		else
+		else {
+			// redirect HW UCND wait to SW UCND wait if it is bigger than 1ms
 			i2c_list->i2c_settings.delay =
-				cmd_uncond_wait->delay;
+				(cmd_uncond_wait->delay + 500) / 1000;
+		}
+
 		(*cmd_buf) +=
 			sizeof(
 			struct cam_cmd_unconditional_wait) / sizeof(uint32_t);
@@ -1349,7 +1353,7 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 
 			rc = msm_cam_sensor_handle_reg_gpio(
 				power_setting->seq_type,
-				gpio_num_info, 1);
+				gpio_num_info, power_setting->config_val);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
 					"Error in handling VREG GPIO");
