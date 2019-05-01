@@ -55,7 +55,7 @@
 #include "debug.h"
 #include "xhci.h"
 
-#define SDP_CONNETION_CHECK_TIME 10000 /* in ms */
+#define SDP_CONNETION_CHECK_TIME 5000 /* in ms */
 
 /* time out to wait for USB cable status notification (in ms)*/
 #define SM_INIT_TIMEOUT 30000
@@ -4264,6 +4264,7 @@ static int get_psy_type(struct dwc3_msm *mdwc)
 	return pval.intval;
 }
 
+#define ENUMERATE_MA		500
 static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA)
 {
 	union power_supply_propval pval = {0};
@@ -4278,7 +4279,10 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA)
 		goto set_prop;
 	}
 
-	if (mdwc->max_power == mA || psy_type != POWER_SUPPLY_TYPE_USB)
+	if (mdwc->max_power == mA
+			|| (psy_type == POWER_SUPPLY_TYPE_USB_CDP)
+			|| ((psy_type != POWER_SUPPLY_TYPE_USB)
+				&& (mA != ENUMERATE_MA)))
 		return 0;
 
 	dev_info(mdwc->dev, "Avail curr from USB = %u\n", mA);
