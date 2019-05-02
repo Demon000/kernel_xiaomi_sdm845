@@ -90,6 +90,11 @@
 
 #define MAX_CC_STEPS			20
 
+#define VBAT_RESTART_FG_EMPTY_UV		3700000
+#define TEMP_THR_RESTART_FG		150
+#define RESTART_FG_START_WORK_MS		1000
+#define RESTART_FG_WORK_MS		2000
+
 enum prof_load_status {
 	PROFILE_MISSING,
 	PROFILE_LOADED,
@@ -351,6 +356,7 @@ struct fg_cyc_ctr_data {
 	u8		last_soc[BUCKET_COUNT];
 	char		counter[BUCKET_COUNT * 8];
 	struct mutex	lock;
+	int		id;
 };
 
 struct fg_cap_learning {
@@ -517,6 +523,9 @@ struct fg_chip {
 	struct work_struct	esr_filter_work;
 	struct alarm		esr_filter_alarm;
 	ktime_t			last_delta_temp_time;
+	bool			empty_restart_fg;
+	struct delayed_work	esr_timer_config_work;
+	struct delayed_work	empty_restart_fg_work;
 };
 
 /* Debugfs data structures are below */

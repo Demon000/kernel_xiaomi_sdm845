@@ -145,6 +145,18 @@ static ssize_t power_supply_show_property(struct device *dev,
 	if (off == POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT)
 		return scnprintf(buf, PAGE_SIZE, "%lld\n",
 				value.int64val);
+	else if (off == POWER_SUPPLY_PROP_WIRELESS_VERSION)
+		return scnprintf(buf, PAGE_SIZE, "0x%x\n",
+				value.intval);
+	else if (off == POWER_SUPPLY_PROP_WIRELESS_WAKELOCK)
+		return scnprintf(buf, PAGE_SIZE, "%d\n",
+				value.intval);
+	else if (off == POWER_SUPPLY_PROP_SIGNAL_STRENGTH)
+		return scnprintf(buf, PAGE_SIZE, "%d\n",
+				value.intval);
+	else if (off == POWER_SUPPLY_PROP_TYPE_RECHECK)
+		return scnprintf(buf, PAGE_SIZE, "0x%x\n",
+				value.intval);
 	else
 		return scnprintf(buf, PAGE_SIZE, "%d\n",
 				value.intval);
@@ -350,6 +362,18 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(serial_number),
 	POWER_SUPPLY_ATTR(battery_type),
 	POWER_SUPPLY_ATTR(cycle_counts),
+
+	/* Xiaomi additions */
+	POWER_SUPPLY_ATTR(esr),
+	POWER_SUPPLY_ATTR(charger_type),
+	POWER_SUPPLY_ATTR(dc_adapter),
+	POWER_SUPPLY_ATTR(dc_thermal_levels),
+	POWER_SUPPLY_ATTR(rerun_apsd),
+	POWER_SUPPLY_ATTR(type_recheck),
+	POWER_SUPPLY_ATTR(wireless_version),
+	POWER_SUPPLY_ATTR(signal_strength),
+	POWER_SUPPLY_ATTR(wireless_wakelock),
+	POWER_SUPPLY_ATTR(tx_adapter),
 };
 
 static struct attribute *
