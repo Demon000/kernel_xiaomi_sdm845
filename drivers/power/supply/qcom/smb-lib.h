@@ -18,6 +18,10 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/consumer.h>
 #include <linux/extcon.h>
+#ifdef CONFIG_FB
+#include <linux/notifier.h>
+#include <linux/fb.h>
+#endif
 #include "storm-watch.h"
 
 enum print_reason {
@@ -26,6 +30,7 @@ enum print_reason {
 	PR_MISC		= BIT(2),
 	PR_PARALLEL	= BIT(3),
 	PR_OTG		= BIT(4),
+	PR_OEM		= BIT(5),
 };
 
 #define DEFAULT_VOTER			"DEFAULT_VOTER"
@@ -73,11 +78,26 @@ enum print_reason {
 #define OV_VOTER			"OV_VOTER"
 #define FG_ESR_VOTER			"FG_ESR_VOTER"
 #define FCC_STEPPER_VOTER		"FCC_STEPPER_VOTER"
+#define DCIN_ADAPTER_VOTER		"DCIN_ADAPTER_VOTER"
+#define CHG_AWAKE_VOTER			"CHG_AWAKE_VOTER"
+#define DC_AWAKE_VOTER			"DC_AWAKE_VOTER"
+#define CC_FLOAT_VOTER			"CC_FLOAT_VOTER"
+#define DCIN_USER_VOTER			"DCIN_USER_VOTER"
+#define UNSTANDARD_QC2_VOTER		"UNSTANDARD_QC2_VOTER"
 
 #define VCONN_MAX_ATTEMPTS	3
 #define OTG_MAX_ATTEMPTS	3
 #define BOOST_BACK_STORM_COUNT	3
 #define WEAK_CHG_STORM_COUNT	8
+
+#define CHG_MONITOR_WORK_DELAY_MS	30000
+#define CC_FLOAT_WORK_START_DELAY_MS	700
+#define BATT_TEMP_CRITICAL_LOW		50
+#define BATT_TEMP_COOL_THR		150
+#define CUTOFF_VOL_THR			3400000
+#define QC2_HVDCP_VOL_UV_THR		7800000
+#define CHECK_VBUS_WORK_DELAY_MS	10
+#define UNSTANDARD_HVDCP2_UA		1800000
 
 enum smb_mode {
 	PARALLEL_MASTER = 0,
@@ -209,6 +229,7 @@ struct smb_params {
 	struct smb_chg_param	dc_icl_div2_mid_hv;
 	struct smb_chg_param	dc_icl_div2_hv;
 	struct smb_chg_param	jeita_cc_comp;
+	struct smb_chg_param	jeita_fv_comp;
 	struct smb_chg_param	freq_buck;
 	struct smb_chg_param	freq_boost;
 };
@@ -222,6 +243,7 @@ struct smb_iio {
 	struct iio_channel	*temp_max_chan;
 	struct iio_channel	*usbin_i_chan;
 	struct iio_channel	*usbin_v_chan;
+	struct iio_channel	*dcin_i_chan;
 	struct iio_channel	*batt_i_chan;
 	struct iio_channel	*connector_temp_chan;
 	struct iio_channel	*connector_temp_thr1_chan;
@@ -265,9 +287,11 @@ struct smb_charger {
 	struct power_supply		*usb_psy;
 	struct power_supply		*dc_psy;
 	struct power_supply		*bms_psy;
+	struct power_supply		*idtp_psy;
 	struct power_supply_desc	usb_psy_desc;
 	struct power_supply		*usb_main_psy;
 	struct power_supply		*usb_port_psy;
+	struct power_supply		*wireless_psy;
 	enum power_supply_type		real_charger_type;
 
 	/* notifiers */
@@ -316,6 +340,11 @@ struct smb_charger {
 	struct work_struct	legacy_detection_work;
 	struct delayed_work	uusb_otg_work;
 	struct delayed_work	bb_removal_work;
+	struct delayed_work	cc_float_charge_work;
+	struct delayed_work	typec_reenable_work;
+	struct delayed_work     charger_type_recheck;
+	struct delayed_work	dc_input_current_work;
+	struct delayed_work	check_vbus_work;
 
 	/* cached status */
 	int			voltage_min_uv;
@@ -324,8 +353,17 @@ struct smb_charger {
 	bool			system_suspend_supported;
 	int			boost_threshold_ua;
 	int			system_temp_level;
+	int			dc_temp_level;
 	int			thermal_levels;
-	int			*thermal_mitigation;
+	int			dc_thermal_levels;
+	int			*thermal_mitigation_dcp;
+	int			*thermal_mitigation_qc3;
+	int			*thermal_mitigation_qc2;
+	int			*thermal_mitigation_dc;
+	int                     *thermal_mitigation_pd_base;
+	int			jeita_ccomp_cool_delta;
+	int			jeita_ccomp_hot_delta;
+	int			jeita_ccomp_low_delta;
 	int			dcp_icl_ua;
 	int			fake_capacity;
 	int			fake_batt_status;
@@ -382,6 +420,25 @@ struct smb_charger {
 	int			pulse_cnt;
 
 	int			die_health;
+
+	/* xiaomi config */
+	bool			wireless_charging_flag;
+	bool			wireless_support;
+	bool			legacy;
+	int			last_soc;
+	int			fake_dc_online;
+	bool			report_usb_absent;
+	int			dc_input_current_now;
+	bool			cc_float_detected;
+	bool			float_rerun_apsd;
+	bool			ignore_recheck_flag;
+	bool			check_vbus_once;
+	bool			unstandard_hvdcp;
+	bool			use_ext_boost;
+	int			dc_adapter;
+	int                     recheck_charger;
+	int                     precheck_charger_type;
+
 };
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);
@@ -533,6 +590,24 @@ void smblib_suspend_on_debug_battery(struct smb_charger *chg);
 int smblib_rerun_apsd_if_required(struct smb_charger *chg);
 int smblib_get_prop_fcc_delta(struct smb_charger *chg,
 				union power_supply_propval *val);
+
+int smblib_get_prop_dc_temp_level(struct smb_charger *chg,
+				union power_supply_propval *val);
+int smblib_set_prop_dc_temp_level(struct smb_charger *chg,
+				const union power_supply_propval *val);
+int smblib_get_prop_wireless_version(struct smb_charger *chg,
+				union power_supply_propval *val);
+int smblib_set_prop_dc_online(struct smb_charger *chg,
+				const union power_supply_propval *val);
+int smblib_get_prop_type_recheck(struct smb_charger *chg,
+				 union power_supply_propval *val);
+int smblib_set_prop_type_recheck(struct smb_charger *chg,
+				 const union power_supply_propval *val);
+int smblib_set_prop_rerun_apsd(struct smb_charger *chg,
+				const union power_supply_propval *val);
+int smblib_set_prop_wireless_wakelock(struct smb_charger *chg,
+				const union power_supply_propval *val);
+
 int smblib_icl_override(struct smb_charger *chg, bool override);
 int smblib_dp_dm(struct smb_charger *chg, int val);
 int smblib_disable_hw_jeita(struct smb_charger *chg, bool disable);
@@ -553,4 +628,7 @@ int smblib_toggle_stat(struct smb_charger *chg, int reset);
 
 int smblib_init(struct smb_charger *chg);
 int smblib_deinit(struct smb_charger *chg);
+
+extern void notify_typec_mode_changed_for_pd(void);
+
 #endif /* __SMB2_CHARGER_H */
