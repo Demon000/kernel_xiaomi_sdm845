@@ -173,13 +173,13 @@ struct smb_dt_props {
 	struct	device_node *revid_dev_node;
 	int	float_option;
 	int	chg_inhibit_thr_mv;
-	int	jeita_cool_cc_delta;
-	int	jeita_hot_cc_delta;
-	int	jeita_low_cc_delta;
 	bool	no_battery;
 	bool	hvdcp_disable;
 	bool	auto_recharge_soc;
 	int	wd_bark_time;
+	int	jeita_cool_cc_delta;
+	int	jeita_hot_cc_delta;
+	int	jeita_low_cc_delta;
 };
 
 struct smb2 {
@@ -189,7 +189,7 @@ struct smb2 {
 	bool			bad_part;
 };
 
-static int __debug_mask = PR_OEM | PR_MISC;
+static int __debug_mask;
 module_param_named(
 	debug_mask, __debug_mask, int, 0600
 );
@@ -211,15 +211,14 @@ module_param_named(
 #define MICRO_1P5A		1500000
 #define MICRO_P1A		100000
 #define OTG_DEFAULT_DEGLITCH_TIME_MS	50
-#define MAX_DCP_ICL_UA  1800000
-#define DEFAULT_CRITICAL_JEITA_CCOMP 2975000
-#define JEITA_SOFT_HOT_CC_COMP		1600000
-#define JEITA_SOFT_COOL_CC_COMP		2225000
 #define MIN_WD_BARK_TIME		16
 #define DEFAULT_WD_BARK_TIME		64
 #define BITE_WDOG_TIMEOUT_8S		0x3
 #define BARK_WDOG_TIMEOUT_MASK		GENMASK(3, 2)
 #define BARK_WDOG_TIMEOUT_SHIFT		2
+#define DEFAULT_CRITICAL_JEITA_CCOMP	2975000
+#define JEITA_SOFT_HOT_CC_COMP		1600000
+#define JEITA_SOFT_COOL_CC_COMP		2225000
 static int smb2_parse_dt(struct smb2 *chip)
 {
 	struct smb_charger *chg = &chip->chg;
@@ -302,7 +301,6 @@ static int smb2_parse_dt(struct smb2 *chip)
 	if (rc < 0)
 		chip->dt.wipower_max_uw = -EINVAL;
 
-#ifdef CONFIG_THERMAL
 	if (of_find_property(node, "qcom,thermal-mitigation-dcp", &byte_len)) {
 		chg->thermal_mitigation_dcp = devm_kzalloc(chg->dev, byte_len,
 			GFP_KERNEL);
@@ -398,27 +396,6 @@ static int smb2_parse_dt(struct smb2 *chip)
 		}
 	}
 
-#else
-	if (of_find_property(node, "qcom,thermal-mitigation", &byte_len)) {
-		chg->thermal_mitigation = devm_kzalloc(chg->dev, byte_len,
-			GFP_KERNEL);
-
-		if (chg->thermal_mitigation == NULL)
-			return -ENOMEM;
-
-		chg->thermal_levels = byte_len / sizeof(u32);
-		rc = of_property_read_u32_array(node,
-				"qcom,thermal-mitigation",
-				chg->thermal_mitigation,
-				chg->thermal_levels);
-		if (rc < 0) {
-			dev_err(chg->dev,
-				"Couldn't read threm limits rc = %d\n", rc);
-			return rc;
-		}
-	}
-#endif
-
 	of_property_read_u32(node, "qcom,float-option", &chip->dt.float_option);
 	if (chip->dt.float_option < 0 || chip->dt.float_option > 4) {
 		pr_err("qcom,float-option is out of range [0, 4]\n");
@@ -447,11 +424,15 @@ static int smb2_parse_dt(struct smb2 *chip)
 	chg->suspend_input_on_debug_batt = of_property_read_bool(node,
 					"qcom,suspend-input-on-debug-batt");
 
+	chg->disable_stat_sw_override = of_property_read_bool(node,
+					"qcom,disable-stat-sw-override");
+
 	rc = of_property_read_u32(node, "qcom,otg-deglitch-time-ms",
 					&chg->otg_delay_ms);
 	if (rc < 0)
 		chg->otg_delay_ms = OTG_DEFAULT_DEGLITCH_TIME_MS;
-		rc = of_property_read_u32(node, "qcom,fcc-low-temp-delta",
+
+	rc = of_property_read_u32(node, "qcom,fcc-low-temp-delta",
 				&chip->dt.jeita_low_cc_delta);
 	if (rc < 0)
 		chip->dt.jeita_low_cc_delta = DEFAULT_CRITICAL_JEITA_CCOMP;
@@ -468,10 +449,6 @@ static int smb2_parse_dt(struct smb2 *chip)
 	if (rc < 0)
 		chip->dt.jeita_cool_cc_delta = JEITA_SOFT_COOL_CC_COMP;
 	chg->jeita_ccomp_cool_delta = chip->dt.jeita_cool_cc_delta;
-
-
-	chg->disable_stat_sw_override = of_property_read_bool(node,
-					"qcom,disable-stat-sw-override");
 
 	return 0;
 }
@@ -506,9 +483,9 @@ static enum power_supply_property smb2_usb_props[] = {
 	POWER_SUPPLY_PROP_PD_VOLTAGE_MIN,
 	POWER_SUPPLY_PROP_SDP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CONNECTOR_TYPE,
+	POWER_SUPPLY_PROP_MOISTURE_DETECTED,
 	POWER_SUPPLY_PROP_RERUN_APSD,
 	POWER_SUPPLY_PROP_TYPE_RECHECK,
-	POWER_SUPPLY_PROP_MOISTURE_DETECTED,
 };
 
 static int smb2_usb_get_prop(struct power_supply *psy,
@@ -1023,10 +1000,10 @@ static enum power_supply_property smb2_dc_props[] = {
 	POWER_SUPPLY_PROP_INPUT_SUSPEND,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_ONLINE,
-	POWER_SUPPLY_PROP_INPUT_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
-	POWER_SUPPLY_PROP_DC_ADAPTER,
 	POWER_SUPPLY_PROP_REAL_TYPE,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_NOW,
+	POWER_SUPPLY_PROP_DC_ADAPTER,
 };
 
 static int smb2_dc_get_prop(struct power_supply *psy,
@@ -1047,18 +1024,17 @@ static int smb2_dc_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 		rc = smblib_get_prop_dc_online(chg, val);
 		break;
-	case POWER_SUPPLY_PROP_INPUT_CURRENT_NOW:
-		//rc = smblib_get_prop_dc_current_now(chg, val);
-		val->intval = chg->dc_input_current_now;
-		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		rc = smblib_get_prop_dc_current_max(chg, val);
 		break;
-	case POWER_SUPPLY_PROP_DC_ADAPTER:
-		val->intval = chg->dc_adapter;
-		break;
 	case POWER_SUPPLY_PROP_REAL_TYPE:
 		val->intval = POWER_SUPPLY_TYPE_WIPOWER;
+		break;
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_NOW:
+		val->intval = chg->dc_input_current_now;
+		break;
+	case POWER_SUPPLY_PROP_DC_ADAPTER:
+		val->intval = chg->dc_adapter;
 		break;
 	default:
 		return -EINVAL;
@@ -1175,10 +1151,9 @@ static int smb2_get_prop_wireless_signal(struct smb_charger *chg,
 	return rc;
 }
 
-/*************************
+/*****************************
  * WIRELESS PSY REGISTRATION *
- *************************/
-
+ *****************************/
 static enum power_supply_property smb2_wireless_props[] = {
 	POWER_SUPPLY_PROP_WIRELESS_VERSION,
 	POWER_SUPPLY_PROP_SIGNAL_STRENGTH,
@@ -1228,6 +1203,7 @@ static int smb2_wireless_get_prop(struct power_supply *psy,
 	default:
 		return -EINVAL;
 	}
+
 	if (rc < 0) {
 		pr_debug("Couldn't get prop %d rc = %d\n", psp, rc);
 		return -ENODATA;
@@ -1276,8 +1252,6 @@ static int smb2_init_wireless_psy(struct smb2 *chip)
 	return 0;
 }
 
-
-
 /*************************
  * BATT PSY REGISTRATION *
  *************************/
@@ -1308,14 +1282,14 @@ static enum power_supply_property smb2_batt_props[] = {
 	POWER_SUPPLY_PROP_SET_SHIP_MODE,
 	POWER_SUPPLY_PROP_DIE_HEALTH,
 	POWER_SUPPLY_PROP_RERUN_AICL,
-	POWER_SUPPLY_PROP_CHARGER_TYPE,
 	POWER_SUPPLY_PROP_DP_DM,
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX,
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
-	POWER_SUPPLY_PROP_DC_THERMAL_LEVELS,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
+	POWER_SUPPLY_PROP_CHARGER_TYPE,
+	POWER_SUPPLY_PROP_DC_THERMAL_LEVELS,
 };
 
 static int smb2_batt_get_prop(struct power_supply *psy,
@@ -1350,9 +1324,6 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
 		rc = smblib_get_prop_system_temp_level_max(chg, val);
-		break;
-	case POWER_SUPPLY_PROP_DC_THERMAL_LEVELS:
-		rc = smblib_get_prop_dc_temp_level(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_CHARGER_TEMP:
 		/* do not query RRADC if charger is not present */
@@ -1425,6 +1396,9 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_RERUN_AICL:
 		val->intval = 0;
 		break;
+	case POWER_SUPPLY_PROP_DC_THERMAL_LEVELS:
+		rc = smblib_get_prop_dc_temp_level(chg, val);
+		break;
 	case POWER_SUPPLY_PROP_CHARGER_TYPE:
 		val->intval = chg->usb_psy_desc.type;
 		break;
@@ -1465,9 +1439,6 @@ static int smb2_batt_set_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
 		rc = smblib_set_prop_system_temp_level(chg, val);
-		break;
-	case POWER_SUPPLY_PROP_DC_THERMAL_LEVELS:
-		rc = smblib_set_prop_dc_temp_level(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		rc = smblib_set_prop_batt_capacity(chg, val);
@@ -1539,6 +1510,9 @@ static int smb2_batt_set_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_DIE_HEALTH:
 		chg->die_health = val->intval;
 		power_supply_changed(chg->batt_psy);
+		break;
+	case POWER_SUPPLY_PROP_DC_THERMAL_LEVELS:
+		rc = smblib_set_prop_dc_temp_level(chg, val);
 		break;
 	default:
 		rc = -EINVAL;
@@ -1775,8 +1749,7 @@ static int smb2_configure_typec(struct smb_charger *chg)
 	 * over-current happens
 	 */
 	rc = smblib_masked_write(chg, TYPE_C_CFG_REG,
-			FACTORY_MODE_DETECTION_EN_BIT
-			| VCONN_OC_CFG_BIT, 0);
+			FACTORY_MODE_DETECTION_EN_BIT | VCONN_OC_CFG_BIT, 0);
 	if (rc < 0) {
 		dev_err(chg->dev, "Couldn't configure Type-C rc=%d\n", rc);
 		return rc;
@@ -1875,17 +1848,20 @@ static int smb2_init_jeita(struct smb2 *chip)
 {
 	struct smb_charger *chg = &chip->chg;
 	int rc;
-/*set cc compensation to 0.3C*/
+
+	/* Set CC compensation to 0.3C */
 	rc = smblib_set_charge_param(chg, &chg->param.jeita_cc_comp, 2225000);
 	if (rc < 0) {
 		pr_err("Couldn't configure jeita_cc rc = %d\n", rc);
 		return rc;
 	}
+
 	rc = smblib_set_charge_param(chg, &chg->param.jeita_fv_comp, 300000);
 	if (rc < 0) {
 		pr_err("Couldn't configure jeita_cv rc = %d\n", rc);
 		return rc;
 	}
+
 	rc = smblib_masked_write(chg, JEITA_EN_CFG_REG,
 				JEITA_EN_COLD_SL_FCV_BIT, 0);
 	if (rc < 0)
@@ -1984,7 +1960,7 @@ static int smb2_init_hw(struct smb2 *chip)
 	vote(chg->pd_disallowed_votable_indirect, HVDCP_TIMEOUT_VOTER,
 			true, 0);
 
-	/* Operate the QC2.0 in 5V/9V mode i.e. Disable 12V */
+	/* Operate QC2.0 in 5V/9V mode, disable 12V */
 	rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
 				 PULSE_COUNT_QC2P0_12V | PULSE_COUNT_QC2P0_9V,
 				 PULSE_COUNT_QC2P0_9V);
@@ -1993,7 +1969,8 @@ static int smb2_init_hw(struct smb2 *chip)
 			"Couldn't configure QC2.0 to 9V rc=%d\n", rc);
 		return rc;
 	}
-	/* Operate the QC3.0 to limit vbus to 6.6v*/
+
+	/* Operate QC3.0 to limit vbus to 6.6v */
 	rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
 				 PULSE_COUNT_QC3P0_mask,
 				 0x7);
@@ -2002,16 +1979,6 @@ static int smb2_init_hw(struct smb2 *chip)
 			"Couldn't configure QC3.0 to 6.6V rc=%d\n", rc);
 		return rc;
 	}
-/*
-	rc = smblib_masked_write(chg, USBIN_ADAPTER_ALLOW_CFG_REG,
-				 USBIN_ADAPTER_ALLOW_MASK,
-				 USBIN_ADAPTER_ALLOW_5V_TO_9V);
-	if (rc < 0) {
-		dev_err(chg->dev,
-			"Couldn't configure QC to 9V rc=%d\n", rc);
-		return rc;
-	}
-*/
 
 	/*
 	 * AICL configuration:
@@ -2119,15 +2086,6 @@ static int smb2_init_hw(struct smb2 *chip)
 	if (rc < 0) {
 		dev_err(chg->dev, "Couldn't configure wipower rc=%d\n", rc);
 		return rc;
-	}
-
-	/* set usbin collapse timer*/
-	rc = smblib_masked_write(chg, USBIN_LOAD_CFG_REG,
-				 USBIN_COLLAPSE_SEL_MASK,
-				 0x01);
-	if (rc < 0) {
-		dev_err(chg->dev, "set usbin collapse timer fault rc=%d\n",
-			rc);
 	}
 
 	/* disable h/w autonomous parallel charging control */
@@ -2808,7 +2766,6 @@ static int smb2_probe(struct platform_device *pdev)
 	/* set driver data before resources request it */
 	platform_set_drvdata(pdev, chip);
 
-	/* wakeup init should be done at the beginning of smb2_probe */
 	device_init_wakeup(chg->dev, true);
 
 	rc = smb2_init_vbus_regulator(chip);
@@ -2937,7 +2894,6 @@ static int smb2_probe(struct platform_device *pdev)
 	pr_info("QPNP SMB2 probed successfully usb:present=%d type=%d batt:present = %d health = %d charge = %d\n",
 		usb_present, chg->real_charger_type,
 		batt_present, batt_health, batt_charge_type);
-	schedule_delayed_work(&chg->reg_work, 60 * HZ);
 	return rc;
 
 cleanup:
@@ -2999,35 +2955,7 @@ static void smb2_shutdown(struct platform_device *pdev)
 	smblib_masked_write(chg, USBIN_OPTIONS_1_CFG_REG,
 				 AUTO_SRC_DETECT_BIT, AUTO_SRC_DETECT_BIT);
 }
-#ifdef CONFIG_FB
-static int smblib_suspend(struct device *dev)
-{
-	return 0;
-}
-static int smblib_resume(struct device *dev)
-{
-	struct smb2 *chip = dev_get_drvdata(dev);
-	struct smb_charger *chg = &chip->chg;
-	union power_supply_propval pval = {0, };
-	int rc;
 
-	rc = smblib_get_prop_batt_capacity(chg, &pval);
-	if (rc < 0)
-		pr_err("Couldn't get batt capacity rc=%d\n", rc);
-
-	if (pval.intval != chg->last_soc) {
-		if (chg->batt_psy)
-			power_supply_changed(chg->batt_psy);
-		chg->last_soc = pval.intval;
-	}
-
-	return 0;
-}
-static const struct dev_pm_ops smb2_pm_ops = {
-	.suspend	= smblib_suspend,
-	.resume		= smblib_resume,
-};
-#endif
 static const struct of_device_id match_table[] = {
 	{ .compatible = "qcom,qpnp-smb2", },
 	{ },
@@ -3038,9 +2966,6 @@ static struct platform_driver smb2_driver = {
 		.name		= "qcom,qpnp-smb2",
 		.owner		= THIS_MODULE,
 		.of_match_table	= match_table,
-#ifdef CONFIG_FB
-		.pm		= &smb2_pm_ops,
-#endif
 	},
 	.probe		= smb2_probe,
 	.remove		= smb2_remove,
