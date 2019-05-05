@@ -195,7 +195,7 @@ static int cam_actuator_eeprom_data_write(
 	msleep(1);
 
 	//2. read checksum data
-	rc = camera_io_dev_read_seq(&(a_ctrl->io_master_info), 0xF7, id_vcm, CAMERA_SENSOR_I2C_TYPE_BYTE, 2);
+	rc = camera_io_dev_read_seq(&(a_ctrl->io_master_info), 0xF7, id_vcm, CAMERA_SENSOR_I2C_TYPE_BYTE, CAMERA_SENSOR_I2C_TYPE_BYTE, 2);
 	CAM_ERR(CAM_ACTUATOR, "check sum 0xF7 value [0x%x] id_vcm[0] = 0x%x, id_vcm[1] = 0x%x", (id_vcm[0] << 8) | id_vcm[1], id_vcm[0], id_vcm[1]);
 	if (rc < 0) {
 		CAM_ERR(CAM_ACTUATOR, "check sum value error");
@@ -425,7 +425,7 @@ static int cam_actuator_fw_download(struct cam_actuator_ctrl_t *a_ctrl)
 		return rc;
 	}
 
-	rc = camera_io_dev_read_seq(&(a_ctrl->io_master_info), 0x825f, id, CAMERA_SENSOR_I2C_TYPE_WORD, 2);
+	rc = camera_io_dev_read_seq(&(a_ctrl->io_master_info), 0x825f, id, CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, 2);
 
 	if (rc < 0) {
 		CAM_ERR(CAM_ACTUATOR, "check version 0x825f value [0x%x] error", (id[0] << 8) | id[1]);
