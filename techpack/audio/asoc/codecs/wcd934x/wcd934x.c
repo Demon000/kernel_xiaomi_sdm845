@@ -5622,10 +5622,25 @@ static int tavil_compander_put(struct snd_kcontrol *kcontrol,
 		/* Set Gain Source Select based on compander enable/disable */
 		snd_soc_update_bits(codec, WCD934X_HPH_L_EN, 0x20,
 				(value ? 0x00:0x20));
+		/* Disable Compander Clock */
+		snd_soc_update_bits(codec, WCD934X_CDC_RX1_RX_PATH_CFG0, 0x02, 0x00);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER1_CTL0, 0x04, 0x04);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER1_CTL0, 0x02, 0x02);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER1_CTL0, 0x02, 0x00);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER1_CTL0, 0x01, 0x00);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER1_CTL0, 0x04, 0x00);
 		break;
 	case COMPANDER_2:
 		snd_soc_update_bits(codec, WCD934X_HPH_R_EN, 0x20,
 				(value ? 0x00:0x20));
+		/* Disable Compander Clock */
+		snd_soc_update_bits(codec, WCD934X_CDC_RX2_RX_PATH_CFG0, 0x02, 0x00);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER2_CTL0, 0x04, 0x04);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER2_CTL0, 0x02, 0x02);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER2_CTL0, 0x02, 0x00);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER2_CTL0, 0x01, 0x00);
+		snd_soc_update_bits(codec, WCD934X_CDC_COMPANDER2_CTL0, 0x04, 0x00);
+
 		break;
 	case COMPANDER_3:
 	case COMPANDER_4:
@@ -5920,6 +5935,14 @@ static int tavil_mad_input_put(struct snd_kcontrol *kcontrol,
 		"%s: tavil input widget = %s, adc_input = %s\n", __func__,
 		mad_input_widget, is_adc_input ? "true" : "false");
 
+	if (!strcmp("AMIC2", mad_input_widget)) {
+		mic_bias_found = 2;
+		dev_info(codec->dev,
+			"%s: tavil input widget = %s, enable MIC BIAS2 directly.\n",
+			__func__, mad_input_widget);
+		goto found_amic2;
+	}
+
 	for (i = 0; i < card->num_of_dapm_routes; i++) {
 		if (!strcmp(card->of_dapm_routes[i].sink, mad_input_widget)) {
 			source_widget = card->of_dapm_routes[i].source;
@@ -5950,6 +5973,7 @@ static int tavil_mad_input_put(struct snd_kcontrol *kcontrol,
 		}
 	}
 
+found_amic2:
 	if (!mic_bias_found) {
 		dev_err(codec->dev, "%s: mic bias not found for input %s\n",
 			__func__, mad_input_widget);
@@ -6123,6 +6147,37 @@ static int tavil_rx_hph_mode_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int codec_version_get(struct snd_kcontrol *kcontrol,
+				 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct tavil_priv *tavil = snd_soc_codec_get_drvdata(codec);
+
+	struct wcd9xxx *wcd9xxx= tavil->wcd9xxx;
+
+	ucontrol->value.integer.value[0] = 0;
+
+	switch (wcd9xxx->version) {
+	case TAVIL_VERSION_WCD9340_1_0:
+		ucontrol->value.integer.value[0] = 1;
+		break;
+	case TAVIL_VERSION_WCD9341_1_0:
+		ucontrol->value.integer.value[0] = 2;
+		break;
+	case TAVIL_VERSION_WCD9340_1_1:
+		ucontrol->value.integer.value[0] = 3;
+		break;
+	case TAVIL_VERSION_WCD9341_1_1:
+		ucontrol->value.integer.value[0] = 4;
+		break;
+	default:
+		dev_warn(codec->dev, "%s:Invalid codec version %d\n",
+			__func__, wcd9xxx->version);
+	}
+
+    return 0;
+}
+
 static const char * const rx_hph_mode_mux_text[] = {
 	"CLS_H_INVALID", "CLS_H_HIFI", "CLS_H_LP", "CLS_AB", "CLS_H_LOHIFI",
 	"CLS_H_ULP", "CLS_AB_HIFI",
@@ -6169,6 +6224,11 @@ static const char * const tavil_ear_pa_gain_text[] = {
 static const char * const tavil_ear_spkr_pa_gain_text[] = {
 	"G_DEFAULT", "G_0_DB", "G_1_DB", "G_2_DB", "G_3_DB",
 	"G_4_DB", "G_5_DB", "G_6_DB"
+};
+
+static const char *const codec_version_text[] = {"Unknown", "WCD9340_v1.0", "WCD9341_v1.0", "WCD9340_v1.1", "WCD9341_v1.1"};
+static const struct soc_enum codec_version[] = {
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(codec_version_text), codec_version_text),
 };
 
 static const char * const tavil_speaker_boost_stage_text[] = {
@@ -6460,6 +6520,8 @@ static const struct snd_kcontrol_new tavil_snd_controls[] = {
 		tavil_amic_pwr_lvl_get, tavil_amic_pwr_lvl_put),
 	SOC_ENUM_EXT("AMIC_5_6 PWR MODE", amic_pwr_lvl_enum,
 		tavil_amic_pwr_lvl_get, tavil_amic_pwr_lvl_put),
+	SOC_ENUM_EXT("Codec Version", codec_version,
+		codec_version_get, NULL ),
 };
 
 static int tavil_dec_enum_put(struct snd_kcontrol *kcontrol,
