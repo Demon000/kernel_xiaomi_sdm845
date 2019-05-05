@@ -942,7 +942,6 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 
 	timeout = jiffies +
 		  msecs_to_jiffies(WCD_FAKE_REMOVAL_MIN_PERIOD_MS);
-	adc_threshold = wcd_mbhc_adc_get_hs_thres(mbhc);
 
 	do {
 		retry++;
@@ -951,6 +950,7 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 		 * any change in IN2_P
 		 */
 		usleep_range(10000, 10100);
+		adc_threshold = wcd_mbhc_adc_get_hs_thres(mbhc);
 		output_mv = wcd_measure_adc_once(mbhc, MUX_CTL_IN2P);
 
 		pr_debug("%s: Check for fake removal: output_mv %d\n",
