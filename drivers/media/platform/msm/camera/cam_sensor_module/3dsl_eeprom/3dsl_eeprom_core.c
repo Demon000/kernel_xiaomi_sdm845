@@ -114,6 +114,7 @@ static int sl_eeprom_read_memory(struct sl_eeprom_ctrl_t *e_ctrl,
 			rc = camera_io_dev_read_seq(&e_ctrl->io_master_info,
 				emap[j].mem.addr, memptr,
 				emap[j].mem.addr_type,
+				emap[j].mem.data_type,
 				emap[j].mem.valid_size);
 			if (rc) {
 				CAM_ERR(CAM_SL_EEPROM, "read failed rc %d",
@@ -203,7 +204,7 @@ static int sl_eeprom_power_down(struct sl_eeprom_ctrl_t *e_ctrl)
 		CAM_ERR(CAM_SL_EEPROM, "failed: power_info %pK", power_info);
 		return -EINVAL;
 	}
-	rc = msm_camera_power_down(power_info, soc_info);
+	rc = cam_sensor_util_power_down(power_info, soc_info);
 	if (rc) {
 		CAM_ERR(CAM_SL_EEPROM, "power down the core is failed:%d", rc);
 		return rc;
@@ -525,7 +526,7 @@ int32_t sl_eeprom_write_eeprom_wrapper(struct sl_eeprom_ctrl_t *e_ctrl, void *ar
 #if TEST_READ
 	map_data = kzalloc( sizeof(uint8_t)*reg_data_map.size, GFP_KERNEL);
 	rc = camera_io_dev_read_seq(&e_ctrl->io_master_info, reg_data_map.reg_setting[0].reg_addr, map_data,
-				 reg_data_map.addr_type, reg_data_map.size);
+				 reg_data_map.addr_type, red_data_map.data_type, reg_data_map.size);
 	if(rc < 0){
 		CAM_ERR(CAM_SL_EEPROM, "read eeprom error rc %d", rc);
 	}
@@ -566,7 +567,7 @@ int32_t sl_eeprom_write_eeprom_wrapper(struct sl_eeprom_ctrl_t *e_ctrl, void *ar
 	memset(map_data, 0,  reg_data_map.size);
 	rc = camera_io_dev_read_seq(&e_ctrl->io_master_info,
 		reg_data_map.reg_setting[1].reg_addr, map_data + 1,
-		reg_data_map.addr_type, reg_data_map.size - 1);
+		reg_data_map.addr_type, reg_data_map.data_type, reg_data_map.size - 1);
 	if(rc < 0){
 		CAM_ERR(CAM_SL_EEPROM, "read eeprom error rc %d", rc);
 			goto	free_data;
