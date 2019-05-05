@@ -1007,7 +1007,6 @@ int tavil_mb_pull_down(struct snd_soc_codec *codec, bool active,
 }
 EXPORT_SYMBOL(tavil_mb_pull_down);
 
-
 /*
  * tavil_mbhc_hs_detect: starts mbhc insertion/removal functionality
  * @codec: handle to snd_soc_codec *

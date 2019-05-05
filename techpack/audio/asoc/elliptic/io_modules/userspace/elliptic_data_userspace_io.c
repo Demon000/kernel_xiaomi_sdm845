@@ -145,5 +145,3 @@ void elliptic_userspace_io_driver_exit(void)
 	unregister_chrdev(elliptic_userspace_major, USERSPACE_IO_DEVICE_NAME);
 	up(&io_device.sem);
 }
-
-

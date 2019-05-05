@@ -267,5 +267,3 @@ int32_t elliptic_userspace_ctrl_write(uint32_t message_id,
 
 	return 0;
 }
-
-

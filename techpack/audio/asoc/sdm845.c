@@ -430,7 +430,6 @@ static const char *const hifi_text[] = {"Off", "On"};
 static const char *const qos_text[] = {"Disable", "Enable"};
 static const char *const ultrasound_power_text[] = {"Off", "On"};
 
-
 static SOC_ENUM_SINGLE_EXT_DECL(slim_0_rx_chs, slim_rx_ch_text);
 static SOC_ENUM_SINGLE_EXT_DECL(slim_2_rx_chs, slim_rx_ch_text);
 static SOC_ENUM_SINGLE_EXT_DECL(slim_0_tx_chs, slim_tx_ch_text);
@@ -2887,7 +2886,6 @@ static int usbhs_direction_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-
 static const struct snd_kcontrol_new msm_snd_controls[] = {
 	SOC_ENUM_EXT("SLIM_0_RX Channels", slim_0_rx_chs,
 			msm_slim_rx_ch_get, msm_slim_rx_ch_put),
@@ -3233,15 +3231,6 @@ static int msm_hifi_ctrl_event(struct snd_soc_dapm_widget *w,
 
 	return 0;
 }
-
-/*
-static int external_amic2_sel_get(struct snd_kcontrol *kcontrol,
-                               struct snd_ctl_elem_value *ucontrol)
-{
-	ucontrol->value.integer.value[0] = amic2_sel_state;
-	return 0;
-}
-*/
 
 static void external_enable_dual_adc_gpio(struct device_node *np, bool val)
 {
@@ -3826,7 +3815,7 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_codec *codec, bool active)
 			gpio_set_value_cansleep(pdata->usbc_en2_gpio, !value);
 		}
 		tavil_mb_pull_down(codec, false, oldv);
-		pr_info("%s: swap select switch %d to %d\n", __func__,
+		pr_debug("%s: swap select switch %d to %d\n", __func__,
 			value, !value);
 		ret = true;
 	} else {
@@ -6828,7 +6817,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 						sizeof(msm_quat_mi2s_tas2557_dai_links));
 				total_links += ARRAY_SIZE(msm_quat_mi2s_tas2557_dai_links);
 			} else if ((get_hw_version_platform() == HARDWARE_PLATFORM_POLARIS) ||
-			(get_hw_version_platform() == HARDWARE_PLATFORM_BERYLLIUM)) {
+				(get_hw_version_platform() == HARDWARE_PLATFORM_BERYLLIUM)) {
 				memcpy(msm_tavil_snd_card_dai_links + total_links,
 						msm_quat_mi2s_tas2559_dai_links,
 						sizeof(msm_quat_mi2s_tas2559_dai_links));
@@ -7304,31 +7293,32 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	 * entry is not found in DT file as some targets do not support
 	 * US-Euro detection
 	 */
-	if (!of_property_read_bool(pdev->dev.of_node, "qcom,euro-us-hw-auto-switch")) {
-		pdata->us_euro_gpio = of_get_named_gpio(pdev->dev.of_node,
+	if (of_property_read_bool(pdev->dev.of_node, "qcom,euro-us-hw-auto-switch"))
+		goto euro_us_hw_auto_switch;
+
+	pdata->us_euro_gpio = of_get_named_gpio(pdev->dev.of_node,
+				"qcom,us-euro-gpios", 0);
+	if (!gpio_is_valid(pdata->us_euro_gpio))
+		pdata->us_euro_gpio_p = of_parse_phandle(pdev->dev.of_node,
 					"qcom,us-euro-gpios", 0);
-		if (!gpio_is_valid(pdata->us_euro_gpio))
-			pdata->us_euro_gpio_p = of_parse_phandle(pdev->dev.of_node,
-						"qcom,us-euro-gpios", 0);
-		if (!gpio_is_valid(pdata->us_euro_gpio) && (!pdata->us_euro_gpio_p)) {
-			dev_dbg(&pdev->dev, "property %s not detected in node %s",
-				"qcom,us-euro-gpios", pdev->dev.of_node->full_name);
-		} else {
-			dev_dbg(&pdev->dev, "%s detected",
-				"qcom,us-euro-gpios");
-			wcd_mbhc_cfg.swap_gnd_mic = msm_swap_gnd_mic;
-		}
-
-		if (of_find_property(pdev->dev.of_node, usb_c_dt, NULL))
-			wcd_mbhc_cfg.swap_gnd_mic = msm_swap_gnd_mic;
-
-		ret = msm_prepare_us_euro(card);
-		if (ret)
-			dev_err(&pdev->dev, "msm_prepare_us_euro failed (%d)\n",
-				ret);
-
+	if (!gpio_is_valid(pdata->us_euro_gpio) && (!pdata->us_euro_gpio_p)) {
+		dev_dbg(&pdev->dev, "property %s not detected in node %s",
+			"qcom,us-euro-gpios", pdev->dev.of_node->full_name);
+	} else {
+		dev_dbg(&pdev->dev, "%s detected",
+			"qcom,us-euro-gpios");
+		wcd_mbhc_cfg.swap_gnd_mic = msm_swap_gnd_mic;
 	}
 
+	if (of_find_property(pdev->dev.of_node, usb_c_dt, NULL))
+		wcd_mbhc_cfg.swap_gnd_mic = msm_swap_gnd_mic;
+
+	ret = msm_prepare_us_euro(card);
+	if (ret)
+		dev_err(&pdev->dev, "msm_prepare_us_euro failed (%d)\n",
+			ret);
+
+euro_us_hw_auto_switch:
 	/* Parse pinctrl info from devicetree */
 	ret = msm_get_pinctrl(pdev);
 	if (!ret) {

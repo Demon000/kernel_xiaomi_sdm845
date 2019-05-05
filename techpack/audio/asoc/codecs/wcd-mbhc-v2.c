@@ -9,7 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
- #define DEBUG
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -35,7 +34,6 @@
 #include "wcd-mbhc-v2-api.h"
 #include <soc/qcom/socinfo.h>
 
-#define SUBPCB_ID_NONE 0
 #define SUBPCB_ID_OLD 1
 #define SUBPCB_ID_NEW 2
 
@@ -685,28 +683,6 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 					&mbhc->zl, &mbhc->zr);
 			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_FSM_EN,
 						 fsm_en);
-#if 0
-			if ((mbhc->zl > mbhc->mbhc_cfg->linein_th &&
-				mbhc->zl < MAX_IMPED) &&
-				(mbhc->zr > mbhc->mbhc_cfg->linein_th &&
-				 mbhc->zr < MAX_IMPED) &&
-				(jack_type == SND_JACK_HEADPHONE)) {
-				jack_type = SND_JACK_LINEOUT;
-				mbhc->force_linein = true;
-				mbhc->current_plug = MBHC_PLUG_TYPE_HIGH_HPH;
-				if (mbhc->hph_status) {
-					mbhc->hph_status &= ~(SND_JACK_HEADSET |
-							SND_JACK_LINEOUT |
-							SND_JACK_UNSUPPORTED);
-					wcd_mbhc_jack_report(mbhc,
-							&mbhc->headset_jack,
-							mbhc->hph_status,
-							WCD_MBHC_JACK_MASK);
-				}
-				pr_debug("%s: Marking jack type as SND_JACK_LINEOUT\n",
-				__func__);
-			}
-#endif
 		}
 
 		mbhc->hph_status |= jack_type;
@@ -1502,15 +1478,6 @@ static int wcd_mbhc_usb_c_analog_setup_gpios(struct wcd_mbhc *mbhc,
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MIC_CLAMP_CTL, 2);
 		mbhc->mbhc_cfg->enable_dual_adc_gpio(mbhc->mbhc_cfg->dual_adc_gpio_node, 0);
 
-#ifdef CONFIG_AUDIO_UART_DEBUG
-		if (get_hw_version_platform() == HARDWARE_PLATFORM_POLARIS) {
-			if (get_hw_version_major() == 0)
-				msm_cdc_pinctrl_select_active_state(config->uart_audio_switch_gpio_p);
-			else
-				msm_cdc_pinctrl_select_sleep_state(config->uart_audio_switch_gpio_p);
-		}
-#endif
-
 		/*using hardware auto switch gnd and mic if support*/
 		if (config->euro_us_hw_switch_gpio_p && (subpcb_id_state == SUBPCB_ID_OLD)) {
 			msm_cdc_pinctrl_select_active_state(config->euro_us_hw_switch_gpio_p);
@@ -1538,15 +1505,6 @@ static int wcd_mbhc_usb_c_analog_setup_gpios(struct wcd_mbhc *mbhc,
 			msm_cdc_pinctrl_select_sleep_state(config->euro_us_hw_switch_gpio_p);
 			pr_info("hardware auto switch disable\n");
 		}
-
-#ifdef CONFIG_AUDIO_UART_DEBUG
-		if (get_hw_version_platform() == HARDWARE_PLATFORM_POLARIS) {
-			if (get_hw_version_major() == 0)
-				msm_cdc_pinctrl_select_sleep_state(config->uart_audio_switch_gpio_p);
-			else
-				msm_cdc_pinctrl_select_active_state(config->uart_audio_switch_gpio_p);
-		}
-#endif
 
 		mbhc->mbhc_cfg->enable_dual_adc_gpio(mbhc->mbhc_cfg->dual_adc_gpio_node, 1);
 
