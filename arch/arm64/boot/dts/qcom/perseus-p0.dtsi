@@ -17,7 +17,7 @@
 #include "sdm845-pmic-overlay.dtsi"
 #include "sdm845-pinctrl-overlay.dtsi"
 #include "perseus-p0-camera-sensor-mtp.dtsi"
-#include "xiaomi-sde-display.dtsi"
+#include "sdm845-xiaomi-common.dtsi"
 
 &qupv3_se10_i2c {
 #include "smb1355.dtsi"
