@@ -5607,7 +5607,6 @@ static int synaptics_rmi4_drm_notifier_cb(struct notifier_block *self,
 				if (rmi4_data->wakeup_en) {
 					drm_panel_reset_skip_enable(false);
 					//drm_regulator_ctrl(rmi4_data, DISP_REG_ALL, false);
-					drm_dsi_ulps_enable(false);
 					rmi4_data->wakeup_en = false;
 				}
 
@@ -5626,7 +5625,6 @@ static int synaptics_rmi4_drm_notifier_cb(struct notifier_block *self,
 					rmi4_data->wakeup_en = true;
 					//drm_regulator_ctrl(rmi4_data, DISP_REG_ALL, true);
 					drm_panel_reset_skip_enable(true);
-					drm_dsi_ulps_enable(true);
 				}
 			} else if (*transition == DRM_BLANK_UNBLANK) {
 				if (bdata->reset_gpio >= 0 && rmi4_data->suspend) {

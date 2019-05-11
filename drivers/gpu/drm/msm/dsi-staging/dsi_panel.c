@@ -353,14 +353,6 @@ static int dsi_panel_gpio_release(struct dsi_panel *panel)
 		g_panel->panel_reset_skip = enable;
 }
 
- void drm_dsi_ulps_enable(bool enable)
-{
-	if (g_panel) {
-		g_panel->ulps_enabled = enable;
-		g_panel->ulps_suspend_enabled = enable;
-	}
-}
-
 int dsi_panel_trigger_esd_attack(struct dsi_panel *panel)
 {
 	struct dsi_panel_reset_config *r_config;
@@ -383,12 +375,6 @@ int dsi_panel_trigger_esd_attack(struct dsi_panel *panel)
 	}
 	pr_err("failed to pull down gpio\n");
 	return -EINVAL;
-}
-
- void drm_dsi_ulps_suspend_enable(bool enable)
-{
-	if (g_panel)
-		g_panel->ulps_suspend_enabled = enable;
 }
 
 static int dsi_panel_reset(struct dsi_panel *panel)

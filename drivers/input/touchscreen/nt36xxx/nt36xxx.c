@@ -2104,8 +2104,6 @@ static int drm_notifier_callback(struct notifier_block *self, unsigned long even
 			if (ts->gesture_enabled) {
 				nvt_enable_reg(ts, true);
 				drm_panel_reset_skip_enable(true);
-				/*drm_dsi_ulps_enable(true);*/
-				/*drm_dsi_ulps_suspend_enable(true);*/
 			}
 			flush_workqueue(ts->event_wq);
 			nvt_ts_suspend(&ts->client->dev);
@@ -2122,8 +2120,6 @@ static int drm_notifier_callback(struct notifier_block *self, unsigned long even
 		if (*blank == DRM_BLANK_UNBLANK) {
 			if (ts->gesture_enabled) {
 				drm_panel_reset_skip_enable(false);
-				/*drm_dsi_ulps_enable(false);*/
-				/*drm_dsi_ulps_suspend_enable(false);*/
 				nvt_enable_reg(ts, false);
 			}
 			flush_workqueue(ts->event_wq);
