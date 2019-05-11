@@ -3049,7 +3049,6 @@ static int fb_notifier_cb(struct notifier_block *self,
 				ft5x46_input_enable(ft5x46->input);
 				if (!ft5x46->wakeup_mode)
 					rc = ft5x46_panel_power(ft5x46, true);
-				drm_dsi_ulps_enable(false);
 			} else if (*blank == DRM_BLANK_POWERDOWN) {
 				dev_dbg(ft5x46->dev, "##### BLANK SCREEN #####\n");
 				ft5x46_input_disable(ft5x46->input);
@@ -3059,17 +3058,6 @@ static int fb_notifier_cb(struct notifier_block *self,
 				if (!ft5x46->wakeup_mode)
 #endif
 					rc = ft5x46_panel_power(ft5x46, false);
-			}
-		} else if (event == DRM_EARLY_EVENT_BLANK) {
-			blank = evdata->data;
-#ifdef CONFIG_TOUCHSCREEN_FT5X46P_PROXIMITY
-			if (*blank == DRM_BLANK_POWERDOWN &&
-				(ft5x46->wakeup_mode || ft5x46->proximity_enable)) {
-#else
-			if (*blank == DRM_BLANK_POWERDOWN && ft5x46->wakeup_mode) {
-#endif
-				pr_debug("Enable suspend ulps\n");
-				drm_dsi_ulps_enable(true);
 			}
 		}
 	}
