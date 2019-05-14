@@ -576,6 +576,8 @@
 				0A 06 02 04 00];
 			qcom,display-topology = <1 0 1>;
 			qcom,default-topology-index = <0>;
+			qcom,partial-update-enabled = "single_roi";
+			qcom,panel-roi-alignment = <360 128 360 128 1080 128>;
 		};
 	};
 };
