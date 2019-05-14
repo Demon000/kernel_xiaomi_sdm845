@@ -42,7 +42,7 @@ static gfp_t low_order_gfp_flags  = (GFP_HIGHUSER | __GFP_NOWARN);
 static const unsigned int orders[] = {8, 4, 0};
 static const unsigned int cam_reserved_counts[] = {800, 1500, 2700};
 #else
-static const unsigned int orders[] = {8, 4, 0};
+static const unsigned int orders[] = {9, 4, 0};
 static const unsigned int cam_reserved_counts[] = {870, 1500, 2720};
 #endif
 #else
