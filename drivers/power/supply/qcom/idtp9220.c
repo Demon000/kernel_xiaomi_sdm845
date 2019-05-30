@@ -1428,16 +1428,13 @@ static int idtp9220_probe(struct i2c_client *client,
 			idtp9220_request_adapter_retry_work);
 
 #ifdef CONFIG_DRM
-	if (&di->wireless_fb_notif) {
-		di->wireless_fb_notif.notifier_call = wireless_fb_notifier_cb;
-		rc = drm_register_client(&di->wireless_fb_notif);
-		if (rc < 0) {
-			dev_err(di->dev,
-					"Couldn't register notifier rc=%d\n", rc);
-			return rc;
-		}
-	} else
-		dev_err(di->dev, "Unsupported fb notifier\n");
+	di->wireless_fb_notif.notifier_call = wireless_fb_notifier_cb;
+	rc = drm_register_client(&di->wireless_fb_notif);
+	if (rc < 0) {
+		dev_err(di->dev,
+				"Couldn't register notifier rc=%d\n", rc);
+		return rc;
+	}
 #endif
 
 	dev_info(di->dev, "[idt] success probe idtp922x driver\n");
