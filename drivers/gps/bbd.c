@@ -826,7 +826,7 @@ int bbd_init(struct device *dev, bool legacy_patch)
 
 	/* Reserve char device number (a.k.a, major, minor)
 	 * for this BBD device */
-	ret = alloc_chrdev_region(&bbd->dev, 0, BBD_DEVICE_INDEX, name);
+	ret = alloc_chrdev_region(&bbd.dev, 0, BBD_DEVICE_INDEX, name);
 	if (ret) {
 		pr_err("BBD:%s() failed to alloc_chrdev_region() "
 				"\"%s\", ret=%d", __func__, name, ret);
@@ -835,7 +835,7 @@ int bbd_init(struct device *dev, bool legacy_patch)
 
 	/* Create BBD char devices */
 	for (minor = 0; minor < BBD_DEVICE_INDEX; minor++) {
-		dev_t devno = MKDEV(MAJOR(bbd->dev), minor);
+		dev_t devno = MKDEV(MAJOR(bbd.dev), minor);
 		struct cdev *cdev = &bbd.priv[minor].dev;
 		const char *name = bbd_dev_name[minor];
 		struct device *dev;
@@ -876,7 +876,7 @@ int bbd_init(struct device *dev, bool legacy_patch)
 
 		/* Done. Put success log and init BBD specific fields */
 		pr_info("BBD:%s(%d,%d) registered /dev/%s\n",
-			      __func__, MAJOR(bbd->dev), minor, name);
+			      __func__, MAJOR(bbd.dev), minor, name);
 
 	}
 
@@ -920,7 +920,7 @@ free_kobj:
 	kobject_put(bbd.kobj);
 free_class:
 	while (--minor > BBD_MINOR_SHMD) {
-		dev_t devno = MKDEV(MAJOR(bbd->dev), minor);
+		dev_t devno = MKDEV(MAJOR(bbd.dev), minor);
 		struct cdev *cdev = &bbd.priv[minor].dev;
 
 		device_destroy(bbd.class, devno);
@@ -948,7 +948,7 @@ static void __exit bbd_exit(void)
 
 	/* Remove BBD char devices */
 	for (minor = BBD_MINOR_SENSOR; minor < BBD_DEVICE_INDEX; minor++) {
-		dev_t devno = MKDEV(MAJOR(bbd->dev), minor);
+		dev_t devno = MKDEV(MAJOR(bbd.dev), minor);
 		struct cdev *cdev = &bbd.priv[minor].dev;
 		const char *name = bbd_dev_name[minor];
 
@@ -957,7 +957,7 @@ static void __exit bbd_exit(void)
 		unregister_chrdev_region(devno, 1);
 
 		pr_info("%s(%d,%d) unregistered /dev/%s\n",
-			__func__, MAJOR(bbd->dev), minor, name);
+			__func__, MAJOR(bbd.dev), minor, name);
 	}
 
 	/* Remove class */
