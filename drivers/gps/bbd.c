@@ -826,10 +826,10 @@ int bbd_init(struct device *dev, bool legacy_patch)
 
 	/* Reserve char device number (a.k.a, major, minor)
 	 * for this BBD device */
-	ret = alloc_chrdev_region(&bbd.dev, 0, BBD_DEVICE_INDEX, name);
+	ret = alloc_chrdev_region(&bbd.dev, 0, BBD_DEVICE_INDEX, "bbd");
 	if (ret) {
 		pr_err("BBD:%s() failed to alloc_chrdev_region() "
-				"\"%s\", ret=%d", __func__, name, ret);
+				"\"bbd\", ret=%d", __func__, ret);
 		goto free_class;
 	}
 
